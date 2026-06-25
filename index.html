@@ -7,6 +7,7 @@
   <style>
     body {
       margin: 0;
+      /* Fondo azul noche con patrón de estrellas diminutas generadas por CSS */
       background-color: #0b0c10; 
       background-image: 
         radial-gradient(1px 1px at 15% 15%, #ffffff33 100%, transparent),
@@ -32,7 +33,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      /* Se desvanece justo cuando termina el último mensaje (4s * 3 mensajes = 8s) */
+      /* Se desvanece justo cuando termina el último mensaje (4s * 3 mensajes = 12s) */
       animation: fadeOutIntro 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
       animation-delay: 12s; 
       pointer-events: none; 
@@ -53,7 +54,7 @@
       animation: fadeInOutText 4s ease-in-out forwards;
     }
 
-    /* Tiempos escalonados matemáticamente para cada frase */
+    /* Tiempos escalonados matemáticamente para cada frase (4 en 4 segundos) */
     .msg-1 { animation-delay: 0s; }
     .msg-2 { animation-delay: 4s; }
     .msg-3 { animation-delay: 8s; }
@@ -64,7 +65,7 @@
 
     @keyframes fadeInOutText {
       0% { opacity: 0; transform: translateY(8px); }
-      20%, 80% { opacity: 1; transform: translateY(0); }
+      15%, 85% { opacity: 1; transform: translateY(0); }
       100% { opacity: 0; transform: translateY(-8px); }
     }
 
@@ -151,7 +152,7 @@
     }
     customElements.define('fragment-node', FragmentNode);
 
-    // 2. COMPONENTE DE LA TARJETA
+    // 2. COMPONENTE DE LA TARJETA (CON PROTECCIÓN CONTRA BUGS DE CARGA)
     class BottomSheet extends LitElement {
       static properties = {
         isOpen: { type: Boolean },
@@ -168,6 +169,13 @@
         this.isLoading = false;
         
         window.addEventListener('fragmento-seleccionado', (e) => {
+          // Solución a la caché: Si la imagen ya está abierta en la tarjeta, no activa la carga
+          if (this.src === e.detail.src && !this.isLoading) {
+            this.text = e.detail.text;
+            this.isOpen = true;
+            return;
+          }
+
           this.isLoading = true; 
           this.src = e.detail.src;
           this.text = e.detail.text;
@@ -280,10 +288,14 @@
             <div class="handle" @click="${this.cerrar}"></div>
             <div class="photo-container">
               ${this.isLoading ? html`<div class="spinner"></div>` : ''}
-              <img src="${this.src}" 
-                   alt="Recuerdo" 
-                   class="${this.isLoading ? 'loading' : ''}"
-                   @load="${this._imagenCargada}">
+              
+              ${this.src ? html`
+                <img src="${this.src}" 
+                     alt="Recuerdo" 
+                     class="${this.isLoading ? 'loading' : ''}"
+                     @load="${this._imagenCargada}"
+                     @error="${this._imagenCargada}">
+              ` : ''}
             </div>
             <p>${this.text}</p>
           </div>

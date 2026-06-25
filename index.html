@@ -23,6 +23,51 @@
       position: relative;
     }
 
+    /* PANTALLA DE INTRODUCCIÓN CINEMATOGRÁFICA SECUENCIAL */
+    .intro-screen {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-color: #0b0c10;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      /* Se desvanece justo cuando termina el último mensaje (4s * 3 mensajes = 8s) */
+      animation: fadeOutIntro 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      animation-delay: 12s; 
+      pointer-events: none; 
+    }
+    
+    .intro-text {
+      position: absolute; /* Superpone todos los textos en el mismo centro */
+      color: #c5c6c7;
+      font-size: 0.8rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      font-weight: 300;
+      text-align: center;
+      padding: 0 24px;
+      box-sizing: border-box;
+      opacity: 0;
+      /* Animación que controla la entrada, permanencia y salida */
+      animation: fadeInOutText 4s ease-in-out forwards;
+    }
+
+    /* Tiempos escalonados matemáticamente para cada frase */
+    .msg-1 { animation-delay: 0s; }
+    .msg-2 { animation-delay: 4s; }
+    .msg-3 { animation-delay: 8s; }
+
+    @keyframes fadeOutIntro {
+      to { opacity: 0; visibility: hidden; }
+    }
+
+    @keyframes fadeInOutText {
+      0% { opacity: 0; transform: translateY(8px); }
+      20%, 80% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-8px); }
+    }
+
     .mensaje-final {
       position: absolute;
       top: 348vh;
@@ -40,7 +85,7 @@
   <script type="module">
     import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
 
-    // 1. COMPONENTE DE LA ESTRELLA (EL NODO CORREGIDO)
+    // 1. COMPONENTE DE LA ESTRELLA
     class FragmentNode extends LitElement {
       static properties = {
         x: { type: String },
@@ -57,10 +102,8 @@
           height: 44px;
           transform: translate(-50%, -50%);
           cursor: pointer;
-          /* Elimina el flash de selección azul de los navegadores móviles */
           -webkit-tap-highlight-color: transparent; 
         }
-        /* Contenedor invisible que atrapa el 100% del toque del dedo */
         .hit-target {
           width: 100%;
           height: 100%;
@@ -74,9 +117,8 @@
           box-shadow: 0 0 10px 2px rgba(224, 230, 237, 0.5);
           transition: transform 0.2s ease, box-shadow 0.2s ease;
           animation: pulse 4s infinite alternate;
-          pointer-events: none; /* Hace que la estrella ignore el toque directo y lo reciba el hit-target */
+          pointer-events: none; 
         }
-        /* La animación visual responde al tocar CUALQUIER parte del área de 44px */
         .hit-target:active .star {
           transform: scale(2.5);
           box-shadow: 0 0 15px 5px rgba(224, 230, 237, 0.8);
@@ -87,17 +129,17 @@
         }
       `;
 
-          render() {
-            this.style.left = this.x;
-            this.style.top = this.y;
-            const randomDelay = Math.random() * 2;
-            return html`
-              <div class="hit-target" @click="${this._abrirFragmento}">
-                <div class="star" 
-                     style="width: ${this.size || '4px'}; height: ${this.size || '4px'}; animation-delay: -${randomDelay}s;"></div>
-              </div>
-            `;
-          }
+      render() {
+        this.style.left = this.x;
+        this.style.top = this.y;
+        const randomDelay = Math.random() * 2;
+        return html`
+          <div class="hit-target" @click="${this._abrirFragmento}">
+            <div class="star" 
+                 style="width: ${this.size || '4px'}; height: ${this.size || '4px'}; animation-delay: -${randomDelay}s;"></div>
+          </div>
+        `;
+      }
 
       _abrirFragmento() {
         this.dispatchEvent(new CustomEvent('fragmento-seleccionado', {
@@ -109,12 +151,13 @@
     }
     customElements.define('fragment-node', FragmentNode);
 
-    // 2. COMPONENTE DE LA TARJETA (BOTTOM SHEET)
+    // 2. COMPONENTE DE LA TARJETA
     class BottomSheet extends LitElement {
       static properties = {
         isOpen: { type: Boolean },
         src: { type: String },
-        text: { type: String }
+        text: { type: String },
+        isLoading: { type: Boolean }
       };
 
       constructor() {
@@ -122,8 +165,10 @@
         this.isOpen = false;
         this.src = '';
         this.text = '';
+        this.isLoading = false;
         
         window.addEventListener('fragmento-seleccionado', (e) => {
+          this.isLoading = true; 
           this.src = e.detail.src;
           this.text = e.detail.text;
           this.isOpen = true;
@@ -181,13 +226,32 @@
           margin-bottom: 20px;
           position: relative;
         }
+        
+        .spinner {
+          position: absolute;
+          width: 28px;
+          height: 28px;
+          border: 2px solid rgba(255, 255, 255, 0.1);
+          border-top-color: #c5c6c7;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
         img {
           max-width: 100%;
           max-height: 100%;
           object-fit: contain;
           border-radius: 8px;
           filter: contrast(75%) saturate(65%) sepia(20%);
+          transition: opacity 0.3s ease; 
         }
+        img.loading {
+          opacity: 0; 
+        }
+
         .photo-container::after {
           content: "";
           position: absolute;
@@ -215,11 +279,19 @@
           <div class="sheet ${this.isOpen ? 'open' : ''}">
             <div class="handle" @click="${this.cerrar}"></div>
             <div class="photo-container">
-              <img src="${this.src}" alt="Recuerdo">
+              ${this.isLoading ? html`<div class="spinner"></div>` : ''}
+              <img src="${this.src}" 
+                   alt="Recuerdo" 
+                   class="${this.isLoading ? 'loading' : ''}"
+                   @load="${this._imagenCargada}">
             </div>
             <p>${this.text}</p>
           </div>
         `;
+      }
+
+      _imagenCargada() {
+        this.isLoading = false; 
       }
 
       cerrar() {
@@ -231,7 +303,13 @@
 </head>
 <body>
 
-  <fragment-node x="25%" y="15vh"  src="1.jpg"  text="Así te quería ver Esperanzita 🍳" size="6px"></fragment-node>
+  <div class="intro-screen">
+    <div class="intro-text msg-1">Sincronizando coordenadas...</div>
+    <div class="intro-text msg-2">Recuperando fragmentos de memoria...</div>
+    <div class="intro-text msg-3">Un cielo hecho completamente para ti ❤️</div>
+  </div>
+
+  <fragment-node x="25%" y="15vh"  src="1.0.jpg"  text="Así te quería ver Esperanzita 🍳" size="6px"></fragment-node>
   <fragment-node x="70%" y="30vh"  src="2.jpg"  text="⚠️ PELIGRO ⚠️" size="4px"></fragment-node>
   <fragment-node x="45%" y="55vh"  src="3.jpg"  text="¡Santa Marta allá vamos! 🏍️🛵" size="5px"></fragment-node>
   

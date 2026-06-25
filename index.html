@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Observatorio de Fragmentos</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #0b0c10; 
+      background-image: 
+        radial-gradient(1px 1px at 15% 15%, #ffffff33 100%, transparent),
+        radial-gradient(1px 1px at 45% 25%, #ffffff44 100%, transparent),
+        radial-gradient(1.5px 1.5px at 75% 10%, #ffffff22 100%, transparent),
+        radial-gradient(1px 1px at 25% 65%, #ffffff55 100%, transparent),
+        radial-gradient(2px 2px at 85% 75%, #ffffff11 100%, transparent),
+        radial-gradient(1px 1px at 55% 90%, #ffffff33 100%, transparent);
+      background-size: 200px 200px;
+      color: #c5c6c7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow-x: hidden;
+      height: 355vh; 
+      position: relative;
+    }
+
+    .mensaje-final {
+      position: absolute;
+      top: 348vh;
+      width: 100%;
+      text-align: center;
+      color: #4a4e59;
+      font-size: 0.75rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      font-weight: 300;
+      opacity: 0.6;
+    }
+  </style>
+
+  <script type="module">
+    import { LitElement, html, css } from 'https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js';
+
+    // 1. COMPONENTE DE LA ESTRELLA (EL NODO CORREGIDO)
+    class FragmentNode extends LitElement {
+      static properties = {
+        x: { type: String },
+        y: { type: String },
+        src: { type: String },
+        text: { type: String },
+        size: { type: String }
+      };
+
+      static styles = css`
+        :host {
+          position: absolute;
+          width: 44px;
+          height: 44px;
+          transform: translate(-50%, -50%);
+          cursor: pointer;
+          /* Elimina el flash de selección azul de los navegadores móviles */
+          -webkit-tap-highlight-color: transparent; 
+        }
+        /* Contenedor invisible que atrapa el 100% del toque del dedo */
+        .hit-target {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        .star {
+          background-color: #e0e6ed;
+          border-radius: 50%;
+          box-shadow: 0 0 10px 2px rgba(224, 230, 237, 0.5);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          animation: pulse 4s infinite alternate;
+          pointer-events: none; /* Hace que la estrella ignore el toque directo y lo reciba el hit-target */
+        }
+        /* La animación visual responde al tocar CUALQUIER parte del área de 44px */
+        .hit-target:active .star {
+          transform: scale(2.5);
+          box-shadow: 0 0 15px 5px rgba(224, 230, 237, 0.8);
+        }
+        @keyframes pulse {
+          0% { opacity: 0.4; }
+          100% { opacity: 1; }
+        }
+      `;
+
+          render() {
+            this.style.left = this.x;
+            this.style.top = this.y;
+            const randomDelay = Math.random() * 2;
+            return html`
+              <div class="hit-target" @click="${this._abrirFragmento}">
+                <div class="star" 
+                     style="width: ${this.size || '4px'}; height: ${this.size || '4px'}; animation-delay: -${randomDelay}s;"></div>
+              </div>
+            `;
+          }
+
+      _abrirFragmento() {
+        this.dispatchEvent(new CustomEvent('fragmento-seleccionado', {
+          detail: { src: this.src, text: this.text },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    }
+    customElements.define('fragment-node', FragmentNode);
+
+    // 2. COMPONENTE DE LA TARJETA (BOTTOM SHEET)
+    class BottomSheet extends LitElement {
+      static properties = {
+        isOpen: { type: Boolean },
+        src: { type: String },
+        text: { type: String }
+      };
+
+      constructor() {
+        super();
+        this.isOpen = false;
+        this.src = '';
+        this.text = '';
+        
+        window.addEventListener('fragmento-seleccionado', (e) => {
+          this.src = e.detail.src;
+          this.text = e.detail.text;
+          this.isOpen = true;
+        });
+      }
+
+      static styles = css`
+        .sheet {
+          position: fixed;
+          bottom: -100%;
+          left: 0;
+          width: 100%;
+          background-color: #12151c;
+          border-radius: 24px 24px 0 0;
+          transition: bottom 0.4s cubic-bezier(0.1, 0.9, 0.2, 1);
+          box-sizing: border-box;
+          padding: 16px 24px 44px 24px;
+          z-index: 100;
+          display: flex;
+          flex-direction: column;
+          max-height: 85vh;
+          overflow: hidden;
+        }
+        .sheet.open {
+          bottom: 0;
+        }
+        .backdrop {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.8);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.4s ease;
+          z-index: 99;
+        }
+        .backdrop.open {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .handle {
+          width: 36px;
+          height: 4px;
+          background: #4a4e59;
+          border-radius: 2px;
+          margin-bottom: 20px;
+          flex-shrink: 0;
+        }
+        .photo-container {
+          width: 100%;
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin-bottom: 20px;
+          position: relative;
+        }
+        img {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+          border-radius: 8px;
+          filter: contrast(75%) saturate(65%) sepia(20%);
+        }
+        .photo-container::after {
+          content: "";
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          pointer-events: none;
+          background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.12"/></svg>');
+          mix-blend-mode: overlay;
+          border-radius: 8px;
+        }
+        p {
+          font-size: 0.95rem;
+          line-height: 1.6;
+          color: #d1d5db;
+          text-align: center;
+          margin: 0;
+          font-weight: 300;
+          flex-shrink: 0;
+          padding-top: 4px;
+        }
+      `;
+
+      render() {
+        return html`
+          <div class="backdrop ${this.isOpen ? 'open' : ''}" @click="${this.cerrar}"></div>
+          <div class="sheet ${this.isOpen ? 'open' : ''}">
+            <div class="handle" @click="${this.cerrar}"></div>
+            <div class="photo-container">
+              <img src="${this.src}" alt="Recuerdo">
+            </div>
+            <p>${this.text}</p>
+          </div>
+        `;
+      }
+
+      cerrar() {
+        this.isOpen = false;
+      }
+    }
+    customElements.define('bottom-sheet', BottomSheet);
+  </script>
+</head>
+<body>
+
+  <fragment-node x="25%" y="15vh"  src="1.0.jpg"  text="Así te quería ver Esperanzita 🍳" size="6px"></fragment-node>
+  <fragment-node x="70%" y="30vh"  src="2.jpg"  text="⚠️ PELIGRO ⚠️" size="4px"></fragment-node>
+  <fragment-node x="45%" y="55vh"  src="3.jpg"  text="¡Santa Marta allá vamos! 🏍️🛵" size="5px"></fragment-node>
+  
+  <fragment-node x="80%" y="85vh"  src="4.jpg"  text="Coordenadas; 10.979 -17.929 🌴🌊" size="3px"></fragment-node>
+  <fragment-node x="15%" y="110vh" src="5.jpg"  text="El día que olvidamos los pantalones marrones 👖💩" size="7px"></fragment-node>
+  <fragment-node x="65%" y="135vh" src="6.jpg"  text="❤️" size="4px"></fragment-node>
+  
+  <fragment-node x="35%" y="170vh" src="7.jpg"  text="Modo ahorro de energía activdo 🪫" size="5px"></fragment-node>
+  <fragment-node x="85%" y="195vh" src="8.jpg"  text="Rumbo a grabar a los mamahuevo glu glu 🐡" size="3px"></fragment-node>
+  <fragment-node x="20%" y="225vh" src="9.jpg"  text="La incitadora incitando 🥵" size="6px"></fragment-node>
+  
+  <fragment-node x="55%" y="260vh" src="10.jpg" text="Mi mejor perfil 😌" size="4px"></fragment-node>
+  <fragment-node x="75%" y="290vh" src="11.jpg" text="Bloques de madera, leyes de la física y guayabo con dos cervezas 🍻" size="5px"></fragment-node>
+  <fragment-node x="25%" y="315vh" src="12.jpg" text="Saludos cordiales 🖕" size="4px"></fragment-node>
+  
+  <fragment-node x="50%" y="340vh" src="13.jpg" text="La peligrosa y nosotros 🔥" size="8px"></fragment-node>
+
+  <div class="mensaje-final">Fin de las transmisiones ❤️</div>
+
+  <bottom-sheet></bottom-sheet>
+
+</body>
+</html>
